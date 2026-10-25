@@ -1,0 +1,62 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      // For this app, we consider any authenticated user an admin.
+      return isAuth();
+    }
+
+    match /newsCache/{country} {
+      allow read;
+      // The server writes to the cache. In this app's model, the server runs as an
+      // unauthenticated process when fetching general news.
+      allow write: if request.auth == null; 
+    }
+    
+    match /generatedArticles/{articleId} {
+        allow read;
+        // The server writes generated articles.
+        allow write: if request.auth == null;
+    }
+    
+    // API Usage is read by admins, written by the server.
+    match /apiUsage/{path=**} {
+        allow read: if isAdmin();
+        allow write: if request.auth == null;
+    }
+
+    // Contact form is public write, admin read/update.
+    match /contactSubmissions/{submissionId} {
+      allow create;
+      allow read, update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // SETTINGS //
+
+    match /settings/apiKeys {
+      // WARNING: public-readable to allow server-side rendering to access keys.
+      // For a production app, it is more secure to use environment variables.
+      allow read;
+      allow write: if isAdmin();
+    }
+    
+    match /settings/ads {
+      allow read, write: if isAdmin();
+    }
+    
+    match /settings/apiState {
+      // World-readable to allow key rotation logic to work for all users.
+      allow read; 
+      // Writable by the server, which runs unauthenticated.
+      allow write: if request.auth == null;
+    }
+  }
+}
